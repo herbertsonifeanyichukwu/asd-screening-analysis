@@ -1,0 +1,169 @@
+---
+title: "ASD Screening Data Analysis"
+author: "Ifeanyichukwu Herbertson"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Introduction
+
+Autistic Spectrum Disorder (ASD) is a neurodevelopmental condition 
+characterised by differences in social communication, behaviour, and 
+sensory processing. This analysis explores a children's ASD screening 
+dataset sourced from the UCI Machine Learning Repository, collected by 
+Fadi Thabtah using the AQ-10-Child screening tool. The dataset contains 
+292 records across 21 variables, and this report investigates the 
+distribution of ASD classifications, the relationship between screening 
+scores and ASD outcome, demographic associations, and the discriminatory 
+power of individual screening questions.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# Paste your library() calls here
+library(foreign)
+library(tidyverse)
+library(janitor)
+```
+
+# Data Loading and Cleaning
+
+```{r cleaning}
+df <- read.arff("Autism-Child-Data.arff")
+
+df <- df %>% 
+  rename(ASD = `Class/ASD`) %>% 
+  clean_names()
+
+df <- df %>% 
+  mutate(across(a1_score:a10_score, ~as.integer(as.character(.))))
+
+df <- df %>% select(-age_desc)
+
+df <- df %>% filter(!is.na(age))
+```
+
+# Results
+
+## 1. Distribution of ASD Classifications
+
+```{r plot1, echo=FALSE}
+ggplot(df, aes(x = asd, fill = asd)) +
+  geom_bar() +
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) +
+  scale_fill_manual(values = c("NO" = "#4C9BE8", "YES" = "#E8734C")) +
+  labs(title = "Distribution of ASD Classification",
+       x = "ASD Classification", y = "Count") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+The dataset contains 149 children classified as non-ASD (NO) and 139 
+classified as ASD (YES), representing a near-equal 52/48 split. This 
+balance is unusual for clinical screening data and likely reflects 
+deliberate curation for research purposes rather than real-world 
+prevalence rates.
+
+## 2. Screening Score by ASD Classification
+
+```{r plot2, echo=FALSE}
+ggplot(df, aes(x = asd, y = result, fill = asd)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_fill_manual(values = c("NO" = "#4C9BE8", "YES" = "#E8734C")) +
+  labs(title = "Screening Score by ASD Classification",
+       x = "ASD Classification",
+       y = "Screening Score (result)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+Children classified with ASD show consistently higher screening scores, 
+with a median of approximately 8, compared to a median of around 5 for 
+non-ASD children. The ASD group also shows much less variability, 
+suggesting that a threshold score of around 7 may be a strong indicator 
+of ASD classification in this dataset.
+
+## 3. Demographic Patterns
+
+```{r plot3, echo=FALSE}
+# Plot 3a: ASD Classification by Gender
+ggplot(df, aes(x = gender, fill = asd)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values = c("NO" = "#4C9BE8", "YES" = "#E8734C")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "ASD Classification by Gender",
+       x = "Gender", y = "Proportion", fill = "ASD") +
+  theme_minimal()
+
+# Plot 3b: ASD Classification by Jaundice History
+ggplot(df, aes(x = jundice, fill = asd)) +
+  geom_bar(position = "fill") +
+  scale_fill_manual(values = c("NO" = "#4C9BE8", "YES" = "#E8734C")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "ASD Classification by Jaundice at Birth",
+       x = "Born with Jaundice", y = "Proportion", fill = "ASD") +
+  theme_minimal()
+```
+
+Gender shows no meaningful difference in ASD classification rates, with 
+both males and females showing an approximately equal split between YES 
+and NO outcomes. Similarly, jaundice at birth does not appear to be a 
+strong differentiator, with children born with and without jaundice 
+showing comparable ASD classification proportions.
+
+## 4. AQ-10 Question Scores
+
+```{r plot4, echo=FALSE}
+df %>%
+  select(a1_score:a10_score, asd) %>%
+  pivot_longer(cols = a1_score:a10_score,
+               names_to = "question",
+               values_to = "score") %>%
+  mutate(question = fct_relevel(question, 
+                                "a1_score", "a2_score", "a3_score", 
+                                "a4_score", "a5_score", "a6_score",
+                                "a7_score", "a8_score", "a9_score", 
+                                "a10_score")) %>%
+  group_by(question, asd) %>%
+  summarise(avg_score = mean(score), .groups = "drop") %>%
+  ggplot(aes(x = question, y = avg_score, fill = asd)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("NO" = "#4C9BE8", "YES" = "#E8734C")) +
+  labs(title = "Average Score per AQ-10 Question by ASD Classification",
+       x = "Question", y = "Average Score (0-1)", fill = "ASD") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Across almost all ten AQ-10 questions, children classified with ASD 
+scored 1 at a higher average rate than non-ASD children. Questions A4, 
+A8, A9, and A10 show the largest gaps between the two groups, suggesting 
+these items are the most discriminating between ASD and non-ASD children.
+
+# Summary
+
+This exploratory analysis of the ASD screening dataset reveals several 
+clear patterns. Screening scores are strongly separated between ASD and 
+non-ASD groups, with ASD-classified children scoring consistently higher 
+and within a tighter range. Demographic variables such as gender and 
+jaundice history show little association with ASD classification in this 
+dataset. At the question level, items A4, A8, A9, and A10 appear to be 
+the most useful discriminators between the two groups. Overall, the 
+AQ-10-Child screening tool shows strong potential as a classification 
+aid, with screening score alone appearing to be a reliable indicator of 
+ASD outcome in this sample.
+
+# Dataset Limitations
+
+Several limitations should be considered when interpreting these findings. 
+First, the dataset contains only 288 records after cleaning, which is a 
+relatively small sample for drawing broad conclusions about ASD screening 
+patterns across populations. Second, the near-equal split between ASD and 
+non-ASD cases (52/48) is unlikely to reflect real-world prevalence, where 
+ASD affects an estimated 1-2% of the general population, suggesting the 
+dataset was deliberately balanced for research and classification purposes. 
+Third, the dataset draws heavily from certain countries and ethnic groups, 
+limiting how generalisable the findings are to a global population. Finally, 
+this analysis is exploratory in nature — the patterns identified here describe 
+associations in the data and should not be interpreted as clinical diagnostic 
+criteria.
